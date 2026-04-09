@@ -1,47 +1,48 @@
 // src/server.js
 require('dotenv').config();
 const app = require('./app');
-const { testConnection } = require('./config/database');
+const { pool } = require('./config/database');
+const fs = require('fs');
+const path = require('path');
 
 const PORT = parseInt(process.env.PORT) || 5000;
 
-const start = async () => {
-  // Verify DB connection before accepting traffic
-  const dbOk = await testConnection();
-  if (!dbOk) {
+const initDB = async () => {
+  try {
+    // Try to create tables from schema.sql if they don't exist
+    const schemaPath = path.join(__dirname, '..', '..', 'schema.sql');
+    if (fs.existsSync(schemaPath)) {
+      const schema = fs.readFileSync(schemaPath, 'utf8');
+      await pool.query(schema);
+      console.log('✅ Database schema initialized');
+    }
+    return true;
+  } catch (err) {
+    // Tables might already exist — that's fine
+    if (err.code === '42P07' || err.message.includes('already exists')) {
+      console.log('✅ Database tables already exist');
+      return true;
+    }
     console.error('❌ Cannot start server: database connection failed');
+    console.error(err.message);
+    return false;
+  }
+};
+
+const start = async () => {
+  const dbOk = await initDB();
+  if (!dbOk) {
     process.exit(1);
   }
 
   const server = app.listen(PORT, () => {
     console.log(`
-╔══════════════════════════════════════════╗
-║          TaskFlow API  v1.0.0            ║
-╠══════════════════════════════════════════╣
-║  🚀  Server  : http://localhost:${PORT}      ║
-║  📄  Docs    : http://localhost:${PORT}/api-docs ║
-║  🏥  Health  : http://localhost:${PORT}/health  ║
-║  🌍  Env     : ${(process.env.NODE_ENV || 'development').padEnd(28)}║
-╚══════════════════════════════════════════╝
+╔════════════════════════════════════╗
+║       TaskFlow API  v1.0.0         ║
+╠════════════════════════════════════╣
+║  Server : http://localhost:${PORT}   ║
+╚════════════════════════════════════╝
     `);
-  });
-
-  // Graceful shutdown
-  const shutdown = (signal) => {
-    console.log(`\n${signal} received. Shutting down gracefully...`);
-    server.close(() => {
-      console.log('HTTP server closed');
-      process.exit(0);
-    });
-    // Force close after 10s
-    setTimeout(() => process.exit(1), 10000);
-  };
-
-  process.on('SIGTERM', () => shutdown('SIGTERM'));
-  process.on('SIGINT',  () => shutdown('SIGINT'));
-
-  process.on('unhandledRejection', (reason) => {
-    console.error('Unhandled Promise Rejection:', reason);
   });
 };
 
