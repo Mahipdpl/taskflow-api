@@ -24,8 +24,7 @@ app.use(helmet({
 }));
 
 app.use(cors({
- origin: process.env.CORS_ORIGIN || ['http://localhost:3000', 'http://localhost:5173', 'http://localhost:4173', 'https://mahipdpl-portfolio.vercel.app', 'https://taskflow-frontend-26d49krdf-mahipdpls-projects.vercel.app'],
-  credentials: true,
+  origin: '*',
 }));
 
 // ────────────────────────────────────────────
